@@ -41,6 +41,12 @@ func InitTargets() []Target {
 			SSHKey:       currentPath + "/id_ed25519_nas1",
 			ShutdownFunc: ShutdownNas,
 		},
+		{
+			Name:         "pinute",
+			IP:           "192.168.30.13",
+			SSHKey:       currentPath + "/id_ed25519_pinute",
+			ShutdownFunc: ShutdownPinute,
+		},
 	}
 }
 
@@ -102,8 +108,8 @@ func CheckTargetsStatus(targets []Target) []string {
 		allDown := true // Assume all are down initially
 
 		for _, t := range targets {
-			if t.Name == "nas1" {
-				// ignore nas1 because this will be off at the moment of this
+			if t.Name == "nas1" || t.Name == "pinute" {
+				// ignore nas1 (nas1 will be off at the moment of this) and pinute
 				continue
 			}
 

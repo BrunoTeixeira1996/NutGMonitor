@@ -11,8 +11,9 @@ import (
 	"github.com/BrunoTeixeira1996/nutgmonitor/internal/webhook"
 )
 
+var upsTargets = targets.InitTargets()
+
 func run() error {
-	upsTargets := targets.InitTargets()
 	for _, t := range upsTargets {
 		if err := t.ValidateSSHKeys(); err != nil {
 			return err
@@ -60,4 +61,8 @@ func main() {
 	if err := run(); err != nil {
 		logger.Log.Println(err)
 	}
+
+	logger.Log.Println("Shuting down Pinute ...")
+	// Turn off Pinute after all targets are down
+	upsTargets[3].ShutdownFunc(upsTargets[3].SSHKey, upsTargets[3].IP)
 }
