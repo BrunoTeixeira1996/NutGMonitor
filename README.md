@@ -1,70 +1,36 @@
-# README
+Following the initial setup of the UPS, our objective is to continuously monitor its performance and automatically shut down connected devices when needed.
 
-## Monitoring and Managing UPS Power with Docker and Automation
+**NutGMonitor** is running on a Rasperry Pi
 
-After implementing the initial setup, our goal is to monitor the UPS and automatically turn off devices powered by it when necessary.
+# Setup
 
-With this we have several options, however my approach is to create another docker container that has a webhook and waits for a request from Prometheus Alert Manager. Alert manager will check the nut_status value and if that is equal 2 it will send a curl request to a docker container running on Pinute. After that the docker container will ssh into every target and shut down them
+Utilizing Network UPS Tools ([NUT](https://networkupstools.org/)) within a [Docker container](https://github.com/instantlinux/docker-tools/blob/main/images/nut-upsd/README.md) to monitor UPS statistics.
 
-To ssh we create ssh keys inside Pinute, go to the targets and add `no-pty,no-X11-forwarding,command="sudo /root/off" ssh-rsa ...` in target's `.ssh/authorized_keys`.
-Then we create a script in `/root/` called `off` with `halt -f -f -p` to turn off the target
+Employing Prometheus Alert Manager to receive real-time updates on UPS status from NUT.
 
-This information is forwarded to the telegram bot by making a request to a special endpoint, in order to telegram bot forward that message to me. In the end an email is sent with all the logs.
-
-## Docker
-
-- Example of Dockerfile
-
-``` yml
-FROM alpine:latest
-
-RUN apk update && apk add --no-cache \
-    curl \
-    openssh-client \
-    bash
+Implementing NutGmonitor in a Docker container to manage UPS actions during power loss.
 
 
-ENV SENDEREMAIL=EMAIL \
-    SENDERPASS=PASS \
-    GKTOKEN=GKTOKEN
+# Action
 
-RUN echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config
+When the UPS stops receiving power, it triggers a warning to the Prometheus Alert Manager after 2 minutes. The Alert Manager then forwards this information to NutGMonitor.
 
-WORKDIR /app
+If the power loss continues for approximately 5 minutes, NutGMonitor initiates the shutdown of devices connected to the UPS.
 
-COPY . /app
+## Power off mechanism
 
-CMD ["./nutgmonitor"]
-```
+The power-off mechanism is tailored to the target system. For instance, if we're working with a Linux machine, we create an `off` bash script containing `halt -f -f -p`. Next, we generate an SSH key for connecting from the NutGMonitor instance to the target. In the target's `authorized_keys`, we restrict the key's access with `no-pty,no-X11-forwarding,command="sudo /root/off"` to ensure it can only execute the off script.
 
-- Example of docker-compose.yml
+NutGMonitor is also compatible with [Gokrazy](https://gokrazy.org/). Since Gokrazy includes only a limited set of Unix utilities, we can initiate a shutdown by sending a POST request to a specific target.
 
-``` yml
-services:
-  nutgmonitor:
-    build:
-      context: .  # Path to the Dockerfile
-    container_name: nutgmonitor-container
-    privileged: true  # Run the container in privileged mode
-    restart: always
-    environment:
-      SENDEREMAIL: SENDEREMAIL
-      SENDERPASS: SENDERPASS
-      GKTOKEN: GKTOKEN
-    volumes:
-      - ./logs:/app/logs
-      - /home/brun0/nut/nut/upslog.txt:/app/logs/upslog/upslog.txt
-    ports:
-      - "9999:9999"
-```
+Once all targets are powered down, we then shut down the Raspberry Pi running NutGMonitor, disconnecting it from the UPS.
 
-## Build
+All relevant information is forwarded to a Telegram bot and sent via email for notifications.
 
-We can just run `make build` (adjust the TARGET_ARCH inside `Makefile`) and then we can run as a common binary with `./nutgmonitor`
+## Fast Power Loss
 
-However I am using Docker. 
+Occasionally, a quick power loss followed by a restoration can occur before the 2-minute threshold is met, preventing the Alert Manager from receiving any updates. To address this, I monitor these power off/on events using [upslog](https://networkupstools.org/docs/man/upslog.html) within the NUT Docker container, which I've integrated into the modified `entrypoint.sh` script by adding the following:
 
-``` console
-$ make run
-$ docker compose up -d --build
+```bash
+/usr/bin/upslog -u $USER -s ups -i 2 -l /var/log/upslog.txt -f "%TIME @Y-@m-@d @H:@M:@S% %VAR battery.charge% %VAR input.voltage% %VAR ups.load% [%VAR ups.status%]"
 ```

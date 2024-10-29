@@ -1,0 +1,16 @@
+services:
+  nutgmonitor:
+    build:
+      context: .  # Path to the Dockerfile
+    container_name: nutgmonitor-container
+    privileged: true  # Run the container in privileged mode
+    restart: always
+    environment:
+      SENDEREMAIL: YOUREMAIL
+      SENDERPASS: YOURPASS
+      GKTOKEN: GKTOKEN
+    volumes:
+      - ./logs:/app/logs
+      - /home/brun0/nut/nut/upslog.txt:/app/logs/upslog/upslog.txt
+    ports:
+      - "9999:9999"
