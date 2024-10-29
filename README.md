@@ -2,6 +2,8 @@ Following the initial setup of the UPS, our objective is to continuously monitor
 
 **NutGMonitor** is running on a Rasperry Pi
 
+Blog post [here](https://brunoteixeira1996.github.io/posts/2024-10-29-automating-my-ups/)
+
 # Setup
 
 Utilizing Network UPS Tools ([NUT](https://networkupstools.org/)) within a [Docker container](https://github.com/instantlinux/docker-tools/blob/main/images/nut-upsd/README.md) to monitor UPS statistics.
