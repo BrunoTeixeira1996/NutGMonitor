@@ -126,7 +126,10 @@ func AlertFastPowerOff(logFile string, nas1Target targets.Target) {
 		}
 
 		if isCurrentlyOnBattery {
-			if len(alertLog.History) >= 6 { // Check if we have at least 6 entries (5 minutes + 1)
+			// 3 min * 60 = 180 secs
+			// 180 / 2 (upslog sends log every 2 seconds) = 90
+			// meaning the ups is down for at least 3 minutes
+			if len(alertLog.History) >= 90 {
 				logger.Log.Println("[ups info] alert: nutgmonitor will probably start to turn off devices because 5 minutes passed...")
 				alertLog.cleanHistory()
 				alertLog.displayHistory()
