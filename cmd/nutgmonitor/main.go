@@ -73,6 +73,11 @@ func main() {
 
 /*
 TODO:
-   I need to create a new rule in alertmanager to send a telegram notification when the docker container for nutups stops working (DONE)
-   Now that i created a new rule in alertmanager and fixed this in this code i need to curl http://192.168.30.13:9995/metrics?target=192.168.30.13:3493 because if that returns "Failed to connect to target: Connection refused (os error 111)" this means that the nut ups docker container got some error and stoped working properly"
+   Now that I created a new rule in alertmanager and fixed this in this code i need to curl http://192.168.30.13:9995/metrics?target=192.168.30.13:3493 because if that returns "Failed to connect to target: Connection refused (os error 111)" this means that the nutupsd docker container is broken and stoped working properly so then I need to notify telegram to fix this ASAP"
+
+   Make a way of testing this:
+   - Test if ups status from nutups is UPSStatusUnknown or UPSStatusCritical
+     - I should create a real function and then use that function on the tests
+   - Test if nutupsd docker container is broken (curl localhost to mimicking http://localhost:9995/metrics?target=192.168.30.13:3493 and see the response)
+     - I should create a real function and then use that function on the tests
 */
