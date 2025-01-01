@@ -46,7 +46,16 @@ func (h *Hooker) alertmanager(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if alertmanagerResponse.Status == "firing" {
+	// when there's a new alert with nut_status == 0 (Unknown)
+	if alertmanagerResponse.Alerts[0].Labels.Alertname == "UPSStatusUnknown" {
+		res := "unknown state on ups, maybe nut ups docker container broke"
+		logger.Log.Printf("[webhook info] %s\n", res)
+		forward.ForwardMessage("UNKNOWN STATE IN UPS ... please check docker containers for more info", res, alertmanagerResponse)
+		h.cancel() // terminate the webhook
+	}
+
+	// when there's a new alert with nut_status == 2 (OB)
+	if alertmanagerResponse.Status == "firing" && alertmanagerResponse.Alerts[0].Labels.Alertname == "UPSStatusCritical" {
 		h.firingCount++
 
 		// After 3 attempts we start to shutdown (3 attempts +/- 5 minutes)
