@@ -11,6 +11,8 @@ import (
 	"github.com/BrunoTeixeira1996/nutgmonitor/internal/webhook"
 )
 
+const version = "2.0"
+
 var upsTargets = targets.InitTargets()
 
 func run() error {
@@ -58,6 +60,8 @@ func main() {
 		return
 	}
 
+	logger.Log.Println("Running on version: ", version)
+
 	if err := run(); err != nil {
 		logger.Log.Println(err)
 	}
@@ -66,3 +70,9 @@ func main() {
 	// Turn off Pinute after all targets are down
 	upsTargets[3].ShutdownFunc(upsTargets[3].SSHKey, upsTargets[3].IP)
 }
+
+/*
+TODO:
+   I need to create a new rule in alertmanager to send a telegram notification when the docker container for nutups stops working (DONE)
+   Now that i created a new rule in alertmanager and fixed this in this code i need to curl http://192.168.30.13:9995/metrics?target=192.168.30.13:3493 because if that returns "Failed to connect to target: Connection refused (os error 111)" this means that the nut ups docker container got some error and stoped working properly"
+*/
