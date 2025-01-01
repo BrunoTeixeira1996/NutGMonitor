@@ -101,7 +101,7 @@ func AlertFastPowerOff(logFile string, nas1Target targets.Target) {
 	isAlerting := false
 	var alertLog AlertLog
 
-	logger.Log.Println("[ups info] starting alert fast power off ...")
+	logger.Log.Println("[ups info] monitoring fast power off ...")
 
 	for {
 		logLines, err := getLogLines(logFile)
