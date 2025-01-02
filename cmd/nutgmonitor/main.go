@@ -11,7 +11,7 @@ import (
 	"github.com/BrunoTeixeira1996/nutgmonitor/internal/webhook"
 )
 
-const version = "2.0"
+const version = "3.0"
 
 var upsTargets = targets.InitTargets()
 
