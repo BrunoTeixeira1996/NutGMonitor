@@ -121,7 +121,7 @@ func AlertFastPowerOff(logFile string, nas1Target targets.Target) {
 					isAlerting = true
 					r := fmt.Sprintf("UPS is now on battery mode - Started at %v\n", alertLog.getDateFromHistory(0))
 					logger.Log.Printf("[ups info] %s\n", r)
-					forward.ForwardMessage("FAST POWEROFF", r, nil)
+					forward.ForwardMessageToTelegram("FAST POWEROFF", r, nil, "")
 
 				}
 			}
@@ -143,7 +143,7 @@ func AlertFastPowerOff(logFile string, nas1Target targets.Target) {
 				r := fmt.Sprintf("UPS is no longer on battery mode - Ended at %v\n", alertLog.getDateFromHistory(len(alertLog.History)-1))
 
 				logger.Log.Printf("[ups info] %s\n", r)
-				forward.ForwardMessage("FAST POWEROFF", r, nil)
+				forward.ForwardMessageToTelegram("FAST POWEROFF", r, nil, "")
 
 				// since the power cameback we need to turn off nas because WoL will turn on
 				// nas everytime the power comesback
@@ -167,9 +167,8 @@ func AlertFastPowerOff(logFile string, nas1Target targets.Target) {
 func ValidateNutUPSContainer(nutupsdUrl string) error {
 	resp, err := http.Get(nutupsdUrl)
 	if err != nil {
-		res := fmt.Sprintf("prometheus exporter container is broken ... could not make request to alert manager (%s)", nutupsdUrl)
-
-		forward.ForwardMessage("NOT OK", res, err)
+		res := "prometheus exporter container is broken ... could not make request to alert manager"
+		forward.ForwardMessageToTelegram("NOT OK", res, nil, err.Error())
 		return fmt.Errorf("[ups error] %s: %s", res, err)
 	}
 	defer resp.Body.Close()
@@ -180,16 +179,14 @@ func ValidateNutUPSContainer(nutupsdUrl string) error {
 	}
 
 	if string(body) == "" {
-		res := "nutupsd returned an empty body ... please check the docker container"
-
-		forward.ForwardMessage("NOT OK", res, nil)
+		res := "nutupsd returned an empty body"
+		forward.ForwardMessageToTelegram("NOT OK", res, nil, "please check the nutuspd docker container")
 		return fmt.Errorf(fmt.Sprintf("[ups error] %s", res))
 	}
 
 	if strings.Contains(string(body), "Failed to connect to target") {
-		res := fmt.Sprintf("nutupsd returned an error message ... please check the docker container: %s", string(body))
-
-		forward.ForwardMessage("NOT OK", res, nil)
+		res := "nutupsd returned an error message ... please check the docker container"
+		forward.ForwardMessageToTelegram("NOT OK", res, nil, string(body))
 		return fmt.Errorf("[ups error] %s", res)
 	}
 

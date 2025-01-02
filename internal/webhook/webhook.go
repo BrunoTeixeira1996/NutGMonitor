@@ -48,9 +48,9 @@ func (h *Hooker) alertmanager(w http.ResponseWriter, r *http.Request) {
 
 	// when there's a new alert with nut_status == 0 (Unknown)
 	if alertmanagerResponse.Alerts[0].Labels.Alertname == "UPSStatusUnknown" {
-		res := "unknown state on ups, maybe nut ups docker container broke"
+		res := "unknown state on ups"
 		logger.Log.Printf("[webhook info] %s\n", res)
-		forward.ForwardMessage("UNKNOWN STATE IN UPS ... please check docker containers for more info", res, alertmanagerResponse)
+		forward.ForwardMessageToTelegram("NOT OK", res, alertmanagerResponse, "maybe nut ups docker container broke")
 		h.cancel() // terminate the webhook
 	}
 
@@ -60,20 +60,20 @@ func (h *Hooker) alertmanager(w http.ResponseWriter, r *http.Request) {
 
 		// After 3 attempts we start to shutdown (3 attempts +/- 5 minutes)
 		if h.firingCount >= 3 {
-			res := "firing count happened 3 times (waited around 5 minutes) ... shuting down targets"
+			res := "firing count happened 3 times (waited around 5 minutes) ... shutting down targets and telegram bot will stop here"
 			logger.Log.Printf("[webhook info] %s\n", res)
-			forward.ForwardMessage("SHUTDOWN ACTION ... telegram bot will stop here", res, alertmanagerResponse)
+			forward.ForwardMessageToTelegram("SHUTDOWN ACTION", res, alertmanagerResponse, "")
 			h.cancel() // terminate the webhook
 
 		} else {
 			res := fmt.Sprintf("firing count: %d", h.firingCount)
 			logger.Log.Printf("[webhook info] %s\n", res)
-			forward.ForwardMessage("FIRING ACTION", res, alertmanagerResponse)
+			forward.ForwardMessageToTelegram("FIRING ACTION", res, alertmanagerResponse, "")
 		}
 	} else {
 		res := fmt.Sprintf("alert was resolved with firing count: %d", h.firingCount)
 		logger.Log.Printf("[webhook info] %s\n", res)
-		forward.ForwardMessage("RESOLVED ACTION", res, alertmanagerResponse)
+		forward.ForwardMessageToTelegram("RESOLVED ACTION", res, alertmanagerResponse, "")
 
 		h.firingCount = 0
 	}

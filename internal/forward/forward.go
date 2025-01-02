@@ -7,23 +7,24 @@ import (
 	"net/http"
 )
 
-func ForwardMessage(status string, res string, structToSend interface{}) error {
-	var message string
+func ForwardMessageToTelegram(status string, messageContent string, structToSend interface{}, messageErr string) error {
+	var m string
 
 	if structToSend == nil {
-		message = fmt.Sprintf("%s - %s", status, res)
+		m = fmt.Sprintf("%s - %s", status, messageContent)
 	} else {
 		alertJSON, err := json.Marshal(structToSend)
 		if err != nil {
 			return fmt.Errorf("[forward error] error marshalling structToSend to JSON: %s\n", err)
 		}
 
-		message = fmt.Sprintf("%s - %s - %s", status, res, string(alertJSON))
+		m = fmt.Sprintf("%s - %s - %s", status, messageContent, string(alertJSON))
 	}
 
 	requestBody := map[string]string{
-		"type":    "nut-alert",
-		"message": message,
+		"source":  "nut-alert",
+		"message": m,
+		"error":   messageErr,
 	}
 
 	jsonData, err := json.Marshal(requestBody)
@@ -32,7 +33,7 @@ func ForwardMessage(status string, res string, structToSend interface{}) error {
 	}
 
 	// telegram bot IP
-	resp, err := http.Post("http://192.168.30.21:8000/fwd", "application/json", bytes.NewBuffer(jsonData))
+	resp, err := http.Post("http://192.168.30.21:8000/forward", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("[forward error] could not make POST request: %s\n", err)
 	}
