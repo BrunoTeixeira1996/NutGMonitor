@@ -30,6 +30,22 @@ func run() error {
 		return fmt.Errorf(e)
 	}
 
+	ticker := time.NewTicker(1 * time.Hour) // run ValidateNutUPSContainer every hour
+	defer ticker.Stop()
+	logger.Log.Println("[run info] monitoring ValidateNUTUPSContainer ...")
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				// This block will run every hour
+				err := ups.ValidateNutUPSContainer("http://192.168.30.13:9995/metrics?target=192.168.30.13:3493")
+				if err != nil {
+					logger.Log.Print(err)
+				}
+			}
+		}
+	}()
+
 	// FIXME: dont use upsTargets[2] to use nas1 , instead use something like upsTargets["nas1"]
 	go ups.AlertFastPowerOff("/app/logs/upslog/upslog.txt", upsTargets[2])
 	// for debug
@@ -70,14 +86,3 @@ func main() {
 	// Turn off Pinute after all targets are down
 	upsTargets[3].ShutdownFunc(upsTargets[3].SSHKey, upsTargets[3].IP)
 }
-
-/*
-TODO:
-   Now that I created a new rule in alertmanager and fixed this in this code i need to curl http://192.168.30.13:9995/metrics?target=192.168.30.13:3493 because if that returns "Failed to connect to target: Connection refused (os error 111)" this means that the nutupsd docker container is broken and stoped working properly so then I need to notify telegram to fix this ASAP"
-
-   Make a way of testing this:
-   - Test if ups status from nutups is UPSStatusUnknown or UPSStatusCritical
-     - I should create a real function and then use that function on the tests
-   - Test if nutupsd docker container is broken (curl localhost to mimicking http://localhost:9995/metrics?target=192.168.30.13:3493 and see the response)
-     - I should create a real function and then use that function on the tests
-*/
