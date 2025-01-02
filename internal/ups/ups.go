@@ -3,6 +3,8 @@ package ups
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -159,4 +161,37 @@ func AlertFastPowerOff(logFile string, nas1Target targets.Target) {
 		}
 		time.Sleep(1 * time.Minute)
 	}
+}
+
+// Check if nutupsd docker container is active or no
+func ValidateNutUPSContainer(nutupsdUrl string) error {
+	resp, err := http.Get(nutupsdUrl)
+	if err != nil {
+		res := fmt.Sprintf("prometheus exporter container is broken ... could not make request to alert manager (%s)", nutupsdUrl)
+
+		forward.ForwardMessage("NOT OK", res, err)
+		return fmt.Errorf("[ups error] %s: %s", res, err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("[ups error] could not read body: %s", err)
+	}
+
+	if string(body) == "" {
+		res := "nutupsd returned an empty body ... please check the docker container"
+
+		forward.ForwardMessage("NOT OK", res, nil)
+		return fmt.Errorf(fmt.Sprintf("[ups error] %s", res))
+	}
+
+	if strings.Contains(string(body), "Failed to connect to target") {
+		res := fmt.Sprintf("nutupsd returned an error message ... please check the docker container: %s", string(body))
+
+		forward.ForwardMessage("NOT OK", res, nil)
+		return fmt.Errorf("[ups error] %s", res)
+	}
+
+	return nil
 }
