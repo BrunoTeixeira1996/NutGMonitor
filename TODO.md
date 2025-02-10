@@ -1,0 +1,2 @@
+- [ ] When `gbackup` is being executed and there's a powerloss the backup stops working because the NAS gets turned off
+	- I need to validate if its Friday and if its >= 13 and <= 14 if yes I can't turn off stuff and I need to wait for the backup to be executed
