@@ -11,7 +11,7 @@ import (
 	"github.com/BrunoTeixeira1996/nutgmonitor/internal/webhook"
 )
 
-const version = "3.0"
+const version = "3.1"
 
 var upsTargets = targets.InitTargets()
 
@@ -38,7 +38,7 @@ func run() error {
 			select {
 			case <-ticker.C:
 				// This block will run every hour
-				err := ups.ValidateNutUPSContainer("http://192.168.30.13:9995/metrics?target=192.168.30.13:3493")
+				err := ups.ValidateNutUPSContainer("http://pinute.lan:9995/metrics?target=pinute.lan:3493")
 				if err != nil {
 					logger.Log.Print(err)
 				}

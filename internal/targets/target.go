@@ -25,7 +25,7 @@ func InitTargets() []Target {
 	return []Target{
 		{
 			Name:         "gokrazy",
-			IP:           "192.168.30.12",
+			IP:           "192.168.30.13",
 			SSHKey:       "",
 			ShutdownFunc: ShutdownGokrazy,
 		},
@@ -37,13 +37,13 @@ func InitTargets() []Target {
 		},
 		{
 			Name:         "nas1",
-			IP:           "192.168.30.200",
+			IP:           "192.168.30.15",
 			SSHKey:       currentPath + "/id_ed25519_nas1",
 			ShutdownFunc: ShutdownNas,
 		},
 		{
 			Name:         "pinute",
-			IP:           "192.168.30.13",
+			IP:           "192.168.30.14",
 			SSHKey:       currentPath + "/id_ed25519_pinute",
 			ShutdownFunc: ShutdownPinute,
 		},

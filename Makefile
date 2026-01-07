@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 FILES = nutgmonitor email_template.html
 REMOTE_USER = brun0
-REMOTE_HOST = pinute
+REMOTE_HOST = pinute.lan
 REMOTE_PATH = /home/$(REMOTE_USER)/src/nutgmonitor
 BINARY_NAME = nutgmonitor
 TARGET_OS = linux

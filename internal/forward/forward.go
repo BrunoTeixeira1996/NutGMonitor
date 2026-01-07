@@ -33,7 +33,7 @@ func ForwardMessageToTelegram(status string, messageContent string, structToSend
 	}
 
 	// telegram bot IP
-	resp, err := http.Post("http://192.168.30.21:8000/forward", "application/json", bytes.NewBuffer(jsonData))
+	resp, err := http.Post("http://bot.lan:8000/forward", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("[forward error] could not make POST request: %s\n", err)
 	}
