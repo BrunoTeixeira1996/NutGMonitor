@@ -25,7 +25,7 @@ func InitTargets() []Target {
 	return []Target{
 		{
 			Name:         "gokrazy",
-			IP:           "192.168.30.13",
+			IP:           "192.168.30.13:1080",
 			SSHKey:       "",
 			ShutdownFunc: ShutdownGokrazy,
 		},

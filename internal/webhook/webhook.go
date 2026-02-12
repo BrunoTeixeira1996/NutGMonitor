@@ -21,6 +21,29 @@ type Hooker struct {
 	cancel      context.CancelFunc
 }
 
+// sendTelegramAsync sends a message to Telegram asynchronously with timeout
+// This prevents blocking the webhook if Telegram is unreachable
+func (h *Hooker) sendTelegramAsync(status string, messageContent string, structToSend interface{}, messageErr string) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- forward.ForwardMessageToTelegram(status, messageContent, structToSend, messageErr)
+		}()
+
+		select {
+		case <-ctx.Done():
+			logger.Log.Printf("[webhook warning] telegram timeout for status: %s\n", status)
+		case err := <-errChan:
+			if err != nil {
+				logger.Log.Printf("[webhook warning] telegram error: %s\n", err)
+			}
+		}
+	}()
+}
+
 // FIXME: move the action of checking status and powering off to another folder outside webhook
 func (h *Hooker) alertmanager(w http.ResponseWriter, r *http.Request) {
 	var (
@@ -43,6 +66,12 @@ func (h *Hooker) alertmanager(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger.Log.Printf("RECEIVED ALERT FROM ALERT MANAGER: %v\n", alertmanagerResponse)
+
+	// Respond immediately to Alert Manager to avoid timeout
+	w.WriteHeader(http.StatusOK)
+
+	// Lock for state management
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -50,9 +79,11 @@ func (h *Hooker) alertmanager(w http.ResponseWriter, r *http.Request) {
 	if alertmanagerResponse.Alerts[0].Labels.Alertname == "UPSStatusUnknown" {
 		res := "unknown state on ups"
 		logger.Log.Printf("[webhook info] %s\n", res)
-		forward.ForwardMessageToTelegram("NOT OK", res, alertmanagerResponse, "maybe nut ups docker container broke")
+		h.sendTelegramAsync("NOT OK", res, alertmanagerResponse, "maybe nut ups docker container broke")
 		h.cancel() // terminate the webhook
 	}
+
+	logger.Log.Printf("alertmanagerResponseStatus: %s, alertmanagerResponseAlertsLabelsAlertname: %s\n", alertmanagerResponse.Status, alertmanagerResponse.Alerts[0].Labels.Alertname)
 
 	// when there's a new alert with nut_status == 2 (OB)
 	if alertmanagerResponse.Status == "firing" && alertmanagerResponse.Alerts[0].Labels.Alertname == "UPSStatusCritical" {
@@ -62,23 +93,21 @@ func (h *Hooker) alertmanager(w http.ResponseWriter, r *http.Request) {
 		if h.firingCount >= 3 {
 			res := "firing count happened 3 times (waited around 5 minutes) ... shutting down targets and telegram bot will stop here"
 			logger.Log.Printf("[webhook info] %s\n", res)
-			forward.ForwardMessageToTelegram("SHUTDOWN ACTION", res, alertmanagerResponse, "")
+			h.sendTelegramAsync("SHUTDOWN ACTION", res, alertmanagerResponse, "")
 			h.cancel() // terminate the webhook
 
 		} else {
 			res := fmt.Sprintf("firing count: %d", h.firingCount)
 			logger.Log.Printf("[webhook info] %s\n", res)
-			forward.ForwardMessageToTelegram("FIRING ACTION", res, alertmanagerResponse, "")
+			h.sendTelegramAsync("FIRING ACTION", res, alertmanagerResponse, "")
 		}
 	} else {
 		res := fmt.Sprintf("alert was resolved with firing count: %d", h.firingCount)
 		logger.Log.Printf("[webhook info] %s\n", res)
-		forward.ForwardMessageToTelegram("RESOLVED ACTION", res, alertmanagerResponse, "")
+		h.sendTelegramAsync("RESOLVED ACTION", res, alertmanagerResponse, "")
 
 		h.firingCount = 0
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func StartWebHook(upsTargets []targets.Target) error {
@@ -97,7 +126,10 @@ func StartWebHook(upsTargets []targets.Target) error {
 		}
 	}()
 
-	<-ctx.Done() // Wait until context is canceled
+	// Wait until webhook is canceled by alert logic (firing count >= 3)
+	// The AlertFastPowerOff() goroutine will also trigger shutdown if UPS is on battery for 3+ minutes
+	<-ctx.Done()
+	logger.Log.Println("[webhook info] webhook canceled by alert logic")
 
 	// we want to shutdown all targets
 	targets.ShutdownTargets(hooker.Targets)

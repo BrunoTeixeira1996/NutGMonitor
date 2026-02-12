@@ -11,7 +11,7 @@ import (
 	"github.com/BrunoTeixeira1996/nutgmonitor/internal/webhook"
 )
 
-const version = "3.1"
+const version = "3.5"
 
 var upsTargets = targets.InitTargets()
 
@@ -72,7 +72,7 @@ func run() error {
 func main() {
 	err := logger.Setup("logs")
 	if err != nil {
-		logger.Log.Println(err)
+		fmt.Println("logger setup failed:", err)
 		return
 	}
 

@@ -2,9 +2,11 @@ package forward
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 func ForwardMessageToTelegram(status string, messageContent string, structToSend interface{}, messageErr string) error {
@@ -32,12 +34,32 @@ func ForwardMessageToTelegram(status string, messageContent string, structToSend
 		return fmt.Errorf("[forward error] could not marshall JSON: %s\n", err)
 	}
 
-	// telegram bot IP
-	resp, err := http.Post("http://bot.lan:8000/forward", "application/json", bytes.NewBuffer(jsonData))
+	// Create context with timeout for the HTTP request
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Create request with context
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://bot.lan:8000/forward", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return fmt.Errorf("[forward error] could not make POST request: %s\n", err)
+		return fmt.Errorf("[forward error] could not create request: %s\n", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// telegram bot IP - use the context-aware client
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("[forward error] could not make POST request to bot.lan:8000: %s\n", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("[forward error] telegram bot returned status: %d\n", resp.StatusCode)
+	}
 
 	return nil
 }
