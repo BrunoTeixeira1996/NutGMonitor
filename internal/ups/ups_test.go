@@ -3,20 +3,8 @@ package ups
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
-
-	"github.com/BrunoTeixeira1996/nutgmonitor/internal/logger"
 )
-
-func TestMain(m *testing.M) {
-	if err := logger.Setup("logs"); err != nil {
-		panic(err)
-	}
-	os.Exit(m.Run())
-}
 
 // TestValidateNutUPSContainer_ValidResponse only exercises the success path,
 // which never sends anything to Telegram. The error paths call
@@ -33,29 +21,61 @@ func TestValidateNutUPSContainer_ValidResponse(t *testing.T) {
 	}
 }
 
-// readLogFile reads a whole fixture log (unlike getLogLines, which only
-// looks at the last minute relative to the current time - fixtures have
-// fixed historical timestamps, so we just read every line here).
-func readLogFile(t *testing.T, path string) []string {
-	t.Helper()
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", path, err)
-	}
-
-	var lines []string
-	for _, l := range strings.Split(string(data), "\n") {
-		if l != "" {
-			lines = append(lines, l)
-		}
+// onBatteryLines builds n consecutive [OB] log lines. isUPSOnBattery only
+// looks at the 6th field, so the rest of the line's content doesn't matter.
+func onBatteryLines(n int) []string {
+	lines := make([]string, n)
+	for i := range lines {
+		lines[i] = "2024-10-20 23:46:00 100 239.5 6 [OB]"
 	}
 	return lines
 }
 
-// longestOnBatteryStreak returns the longest run of consecutive [OB] lines
-// in a log, which is the same signal AlertFastPowerOff uses (90 lines, at
-// upslog's 2s interval, is the ~3 minute sustained-outage threshold).
+func TestLongestOnBatteryStreak(t *testing.T) {
+	tests := []struct {
+		name  string
+		lines []string
+		want  int
+	}{
+		{
+			name: "normal - no outage",
+			lines: []string{
+				"2024-10-20 22:00:00 100 239.2 4 [OL]",
+				"2024-10-20 22:00:02 100 239.2 4 [OL]",
+				"2024-10-20 22:00:04 100 239.2 4 [OL]",
+			},
+			want: 0,
+		},
+		{
+			name: "fast poweroff - restores well under the 90-line/3min threshold",
+			lines: []string{
+				"2024-10-20 23:45:55 100 239.2 4 [OL]",
+				"2024-10-20 23:45:57 100 239.5 6 [OB]",
+				"2024-10-20 23:45:59 100 239.5 6 [OB]",
+				"2024-10-20 23:46:01 100 239.5 6 [OB]",
+				"2024-10-20 23:46:17 100 239.2 4 [OL]",
+			},
+			want: 3,
+		},
+		{
+			name:  "sustained poweroff - reaches the 90-line/3min threshold",
+			lines: onBatteryLines(90),
+			want:  90,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := longestOnBatteryStreak(tt.lines); got != tt.want {
+				t.Errorf("longestOnBatteryStreak() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// longestOnBatteryStreak returns the longest run of consecutive [OB] lines,
+// the same signal AlertFastPowerOff uses (90 lines, at upslog's 2s interval,
+// is the ~3 minute sustained-outage threshold).
 func longestOnBatteryStreak(lines []string) int {
 	longest, current := 0, 0
 	for _, l := range lines {
@@ -69,32 +89,4 @@ func longestOnBatteryStreak(lines []string) int {
 		}
 	}
 	return longest
-}
-
-func TestLog_Normal(t *testing.T) {
-	lines := readLogFile(t, filepath.Join("testdata", "log_normal.txt"))
-
-	if streak := longestOnBatteryStreak(lines); streak != 0 {
-		t.Errorf("expected no [OB] lines in a normal log, got a streak of %d", streak)
-	}
-}
-
-func TestLog_FastPoweroff(t *testing.T) {
-	lines := readLogFile(t, filepath.Join("testdata", "log_fast_poweroff.txt"))
-
-	streak := longestOnBatteryStreak(lines)
-	if streak == 0 {
-		t.Fatal("expected some [OB] lines in a fast-poweroff log")
-	}
-	if streak >= 90 {
-		t.Errorf("expected a fast poweroff (restored under the 90-line/3-minute threshold), got a streak of %d", streak)
-	}
-}
-
-func TestLog_Poweroff(t *testing.T) {
-	lines := readLogFile(t, filepath.Join("testdata", "log_poweroff.txt"))
-
-	if streak := longestOnBatteryStreak(lines); streak < 90 {
-		t.Errorf("expected a sustained poweroff (at or over the 90-line/3-minute threshold), got a streak of %d", streak)
-	}
 }
