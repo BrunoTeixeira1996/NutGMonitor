@@ -55,7 +55,11 @@ func (a *AlertLog) getDateFromHistory(pos int) string {
 }
 
 func isUPSOnBattery(logLine string) bool {
-	return strings.Split(logLine, " ")[5] == "[OB]"
+	parts := strings.Split(logLine, " ")
+	if len(parts) < 6 {
+		return false
+	}
+	return parts[5] == "[OB]"
 }
 
 // Read log lines and grab the previous minute compared with the current
@@ -77,7 +81,7 @@ func getLogLines(logFile string) ([]string, error) {
 		line := scanner.Text()
 
 		parts := strings.Split(line, " ")
-		if len(parts) < 2 {
+		if len(parts) < 6 {
 			continue // Skip malformed lines
 		}
 
@@ -108,7 +112,13 @@ func AlertFastPowerOff(logFile string, nas1Target targets.Target) {
 	for {
 		logLines, err := getLogLines(logFile)
 		if err != nil {
-			logger.Log.Fatal(err)
+			// Transient (file not yet created, briefly missing during a
+			// remount, etc.) - log and retry instead of killing the whole
+			// process, since this goroutine must not take down the webhook
+			// listener that is the primary shutdown path.
+			logger.Log.Printf("[ups error] %s", err)
+			time.Sleep(1 * time.Minute)
+			continue
 		}
 
 		isCurrentlyOnBattery := false
@@ -179,9 +189,9 @@ func ValidateNutUPSContainer(nutupsdUrl string) error {
 	}
 
 	if string(body) == "" {
-		res := "nutupsd returned an empty body"
-		forward.ForwardMessageToTelegram("NOT OK", res, nil, "please check the nutuspd docker container")
-		return fmt.Errorf(fmt.Sprintf("[ups error] %s", res))
+		res := fmt.Sprintf("nutupsd returned an empty body (status: %s)", resp.Status)
+		forward.ForwardMessageToTelegram("NOT OK", res, nil, "please check the nutupsd docker container")
+		return fmt.Errorf("[ups error] %s", res)
 	}
 
 	if strings.Contains(string(body), "Failed to connect to target") {

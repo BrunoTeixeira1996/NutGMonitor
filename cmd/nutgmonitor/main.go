@@ -2,16 +2,16 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
-	"github.com/BrunoTeixeira1996/nutgmonitor/internal/email"
 	"github.com/BrunoTeixeira1996/nutgmonitor/internal/logger"
 	"github.com/BrunoTeixeira1996/nutgmonitor/internal/targets"
 	"github.com/BrunoTeixeira1996/nutgmonitor/internal/ups"
 	"github.com/BrunoTeixeira1996/nutgmonitor/internal/webhook"
 )
 
-const version = "3.5"
+const version = "3.7"
 
 var upsTargets = targets.InitTargets()
 
@@ -23,14 +23,14 @@ func run() error {
 	}
 	logger.Log.Printf("[run info] validated all targets\n")
 
-	em, p := email.GetEnvs()
-	if em == "" || p == "" {
-		e := "[run error] email and password not set for email\n"
+	if os.Getenv("GKTOKEN") == "" {
+		e := "[run error] GKTOKEN not set for gokrazy shutdown\n"
 		logger.Log.Printf(e)
 		return fmt.Errorf(e)
 	}
 
 	ticker := time.NewTicker(1 * time.Hour) // run ValidateNutUPSContainer every hour
+	//ticker := time.NewTicker(1 * time.Minute) // for debug
 	defer ticker.Stop()
 	logger.Log.Println("[run info] monitoring ValidateNUTUPSContainer ...")
 	go func() {
@@ -70,6 +70,10 @@ func main() {
 
 	if err := run(); err != nil {
 		logger.Log.Println(err)
+		// run() only reaches a real shutdown after targets have already been
+		// powered off; an error here means we never got that far (bad startup
+		// config or a webhook listener failure), so don't shut Pinute down too.
+		return
 	}
 
 	logger.Log.Println("Shuting down Pinute ...")

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/BrunoTeixeira1996/nutgmonitor/internal/logger"
@@ -52,29 +53,45 @@ func InitTargets() []Target {
 
 func (t *Target) ValidateSSHKeys() error {
 	if t.SSHKey != "" {
-		_, err := os.Stat(t.SSHKey)
-		if os.IsNotExist(err) {
-			return fmt.Errorf("[target error] %s ssh key does not exist in path: %s\n", t.SSHKey, err)
+		if _, err := os.Stat(t.SSHKey); err != nil {
+			return fmt.Errorf("[target error] %s ssh key is not accessible: %s\n", t.SSHKey, err)
 		}
 	}
 	return nil
 }
 
+// ShutdownTargets powers off every target except "pinute" (which is always
+// shut down last, separately, once everything else is confirmed down).
+// Targets are shut down concurrently so that one slow/unresponsive target
+// (e.g. gokrazy's HTTP call, which budgets up to 4 minutes) doesn't delay the
+// shutdown attempt for every other target queued behind it.
 func ShutdownTargets(targets []Target) {
 	logger.Log.Println("[targets info] preparing to shutdown the following targets:", targets)
+
+	var wg sync.WaitGroup
 	for _, t := range targets {
 		if t.Name == "pinute" {
 			// pinute is the last target to get shutdown
 			continue
 		}
 
-		logger.Log.Printf("[targets info] powering off %s ...\n", t.Name)
-		if err := t.ShutdownFunc(t.SSHKey, t.IP); err != nil {
-			logger.Log.Printf("[targets error] could not shutdown %s: %s\n", t.Name, err)
-		} else {
-			logger.Log.Printf("[targets info] target %s was shut down\n", t.Name)
-		}
+		wg.Add(1)
+		go func(t Target) {
+			defer wg.Done()
+
+			logger.Log.Printf("[targets info] powering off %s ...\n", t.Name)
+			if err := t.ShutdownFunc(t.SSHKey, t.IP); err != nil {
+				// Many shutdown commands (halt, shutdown -P) terminate the
+				// SSH session mid-flight, so a non-nil error here is common
+				// even when the target actually powered off successfully.
+				// CheckTargetsStatus() is the authoritative signal for that.
+				logger.Log.Printf("[targets info] shutdown command for %s returned an error (often expected if the command closes the connection): %s\n", t.Name, err)
+			} else {
+				logger.Log.Printf("[targets info] target %s was shut down\n", t.Name)
+			}
+		}(t)
 	}
+	wg.Wait()
 }
 
 func isTargetAlive(ip, name string) bool {

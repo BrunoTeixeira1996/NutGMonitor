@@ -66,6 +66,12 @@ func (h *Hooker) alertmanager(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(alertmanagerResponse.Alerts) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		logger.Log.Printf("[webhook error] received a payload with no alerts, ignoring: %v\n", alertmanagerResponse)
+		return
+	}
+
 	logger.Log.Printf("RECEIVED ALERT FROM ALERT MANAGER: %v\n", alertmanagerResponse)
 
 	// Respond immediately to Alert Manager to avoid timeout
@@ -81,6 +87,7 @@ func (h *Hooker) alertmanager(w http.ResponseWriter, r *http.Request) {
 		logger.Log.Printf("[webhook info] %s\n", res)
 		h.sendTelegramAsync("NOT OK", res, alertmanagerResponse, "maybe nut ups docker container broke")
 		h.cancel() // terminate the webhook
+		return
 	}
 
 	logger.Log.Printf("alertmanagerResponseStatus: %s, alertmanagerResponseAlertsLabelsAlertname: %s\n", alertmanagerResponse.Status, alertmanagerResponse.Alerts[0].Labels.Alertname)
@@ -112,6 +119,7 @@ func (h *Hooker) alertmanager(w http.ResponseWriter, r *http.Request) {
 
 func StartWebHook(upsTargets []targets.Target) error {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	hooker := &Hooker{Targets: upsTargets, cancel: cancel}
 	http.HandleFunc("/alertmanager", hooker.alertmanager)
@@ -120,16 +128,24 @@ func StartWebHook(upsTargets []targets.Target) error {
 
 	server := &http.Server{Addr: ":9999"}
 
+	listenErrCh := make(chan error, 1)
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Log.Fatalf("[webhook error] error listening: %s\n", err)
+			listenErrCh <- err
 		}
 	}()
 
-	// Wait until webhook is canceled by alert logic (firing count >= 3)
-	// The AlertFastPowerOff() goroutine will also trigger shutdown if UPS is on battery for 3+ minutes
-	<-ctx.Done()
-	logger.Log.Println("[webhook info] webhook canceled by alert logic")
+	// Wait until webhook is canceled by alert logic (firing count >= 3), or
+	// until the listener itself fails to start. We deliberately do NOT treat
+	// a listener failure the same as an alert-triggered cancellation: it must
+	// not fall through into shutting down every target, since no real outage
+	// was ever confirmed.
+	select {
+	case <-ctx.Done():
+		logger.Log.Println("[webhook info] webhook canceled by alert logic")
+	case err := <-listenErrCh:
+		return fmt.Errorf("[webhook error] error listening: %s", err)
+	}
 
 	// we want to shutdown all targets
 	targets.ShutdownTargets(hooker.Targets)
@@ -148,10 +164,14 @@ func StartWebHook(upsTargets []targets.Target) error {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer shutdownCancel()
 
+	// Targets are already shut down by this point, so a failure to close the
+	// HTTP server gracefully must not take the whole process down - that
+	// would skip the final Pinute shutdown in main().
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		logger.Log.Fatalf("[webhook error] server shutdown failed: %s", err)
+		logger.Log.Printf("[webhook error] server shutdown failed: %s\n", err)
+	} else {
+		logger.Log.Println("[webhook info] server shut down gracefully")
 	}
-	logger.Log.Println("[webhook info] server shut down gracefully")
 
 	return nil
 }
