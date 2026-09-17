@@ -31,34 +31,34 @@ func onBatteryLines(n int) []string {
 	return lines
 }
 
-func TestLongestOnBatteryStreak(t *testing.T) {
+func TestOutageDuration(t *testing.T) {
 	tests := []struct {
 		name  string
 		lines []string
 		want  int
 	}{
 		{
-			name: "normal - no outage",
+			name: "normal behaviour",
 			lines: []string{
 				"2024-10-20 22:00:00 100 239.2 4 [OL]",
 				"2024-10-20 22:00:02 100 239.2 4 [OL]",
 				"2024-10-20 22:00:04 100 239.2 4 [OL]",
 			},
-			want: 0,
+			want: 0, // 0 on battery
 		},
 		{
-			name: "fast poweroff - restores well under the 90-line/3min threshold",
+			name: "fast poweroff",
 			lines: []string{
 				"2024-10-20 23:45:55 100 239.2 4 [OL]",
 				"2024-10-20 23:45:57 100 239.5 6 [OB]",
 				"2024-10-20 23:45:59 100 239.5 6 [OB]",
 				"2024-10-20 23:46:01 100 239.5 6 [OB]",
-				"2024-10-20 23:46:17 100 239.2 4 [OL]",
+				"2024-10-20 23:46:03 100 239.2 4 [OL]",
 			},
-			want: 3,
+			want: 3, // 3 on battery
 		},
 		{
-			name:  "sustained poweroff - reaches the 90-line/3min threshold",
+			name:  "long poweroff - starts turning off everything",
 			lines: onBatteryLines(90),
 			want:  90,
 		},
@@ -66,17 +66,17 @@ func TestLongestOnBatteryStreak(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := longestOnBatteryStreak(tt.lines); got != tt.want {
-				t.Errorf("longestOnBatteryStreak() = %d, want %d", got, tt.want)
+			if got := outageDuration(tt.lines); got != tt.want {
+				t.Errorf("outageDuration() = %d, want %d", got, tt.want)
 			}
 		})
 	}
 }
 
-// longestOnBatteryStreak returns the longest run of consecutive [OB] lines,
-// the same signal AlertFastPowerOff uses (90 lines, at upslog's 2s interval,
-// is the ~3 minute sustained-outage threshold).
-func longestOnBatteryStreak(lines []string) int {
+// outageDuration returns how many [OB] log lines in a row the UPS stayed on
+// battery for - the same signal AlertFastPowerOff uses (90 lines, at
+// upslog's 2s interval, is the ~3 minute sustained-outage threshold).
+func outageDuration(lines []string) int {
 	longest, current := 0, 0
 	for _, l := range lines {
 		if isUPSOnBattery(l) {
