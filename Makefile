@@ -22,3 +22,4 @@ gdb:
 deploy:
 	$(MAKE) compile
 	rsync -avz --update $(FILES) $(REMOTE_USER)@$(REMOTE_HOST):$(REMOTE_PATH)
+	ssh $(REMOTE_USER)@$(REMOTE_HOST) 'cd $(REMOTE_PATH) && docker compose up -d --build'
