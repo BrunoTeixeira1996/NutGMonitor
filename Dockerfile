@@ -6,9 +6,7 @@ RUN apk update && apk add --no-cache \
     bash
 
 
-ENV SENDEREMAIL=YOUREMAIL \
-    SENDERPASS=YOURPASS \
-    GKTOKEN=GKTOKEN
+ENV GKTOKEN=GKTOKEN
 
 RUN echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config
 

@@ -27,7 +27,7 @@ NutGMonitor is also compatible with [Gokrazy](https://gokrazy.org/). Since Gokra
 
 Once all targets are powered down, we then shut down the Raspberry Pi running NutGMonitor, disconnecting it from the UPS.
 
-All relevant information is forwarded to a Telegram bot and sent via email for notifications.
+All relevant information is forwarded to a Telegram bot for notifications.
 
 ## Fast Power Loss
 

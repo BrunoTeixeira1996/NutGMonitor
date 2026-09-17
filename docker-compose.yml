@@ -6,8 +6,6 @@ services:
     privileged: true  # Run the container in privileged mode
     restart: always
     environment:
-      SENDEREMAIL: YOUREMAIL
-      SENDERPASS: YOURPASS
       GKTOKEN: GKTOKEN
     volumes:
       - ./logs:/app/logs

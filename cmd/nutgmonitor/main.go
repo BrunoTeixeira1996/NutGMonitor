@@ -56,16 +56,6 @@ func run() error {
 		return err
 	}
 
-	// Content field is assigned inside email.buildEmail() function
-	finalResult := &email.EmailTemplate{
-		Timestamp: time.Now().String(),
-	}
-
-	logger.Log.Printf("[run info] preparing email fields\n")
-	if err := email.SendEmail(finalResult); err != nil {
-		logger.Log.Printf("[run error] could not send email: %s", err)
-	}
-
 	return nil
 }
 
