@@ -62,6 +62,24 @@ func TestOutageDuration(t *testing.T) {
 			lines: onBatteryLines(90),
 			want:  90,
 		},
+		{
+			// Power restoring resets tracking (see AlertFastPowerOff), so two
+			// separate blips must not add up - only the longest single one
+			// counts towards the poweroff threshold.
+			name: "multiple separate fast poweroffs - only the longest one counts",
+			lines: []string{
+				"2024-10-20 23:40:00 100 239.2 4 [OB]",
+				"2024-10-20 23:40:02 100 239.2 4 [OB]",
+				"2024-10-20 23:40:04 100 239.2 4 [OL]",
+				"2024-10-20 23:45:00 100 239.2 4 [OB]",
+				"2024-10-20 23:45:02 100 239.2 4 [OB]",
+				"2024-10-20 23:45:04 100 239.2 4 [OB]",
+				"2024-10-20 23:45:06 100 239.2 4 [OB]",
+				"2024-10-20 23:45:08 100 239.2 4 [OB]",
+				"2024-10-20 23:45:10 100 239.2 4 [OL]",
+			},
+			want: 5,
+		},
 	}
 
 	for _, tt := range tests {
